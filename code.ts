@@ -46,6 +46,8 @@ interface ContainerSpec {
   // text container 가 배너 프레임 안에서 위치할 좌표 (좌상단 기준)
   x: number;
   y: number;
+  // true 면 y 값을 무시하고 배너 height 안에서 수직 중앙으로 자동 정렬
+  yCenter?: boolean;
   // text container 안 children 간 간격
   gapTitleBody: number; // Title ↔ Body
   gapBodyCTA: number;   // Body ↔ CTA
@@ -65,8 +67,9 @@ interface SizeStyleConfig {
 const SIZE_STYLES: { [sizeId: string]: SizeStyleConfig } = {
   s_1920x1080: {
     container: {
-      x: 240,
-      y: 390,
+      x: 230,
+      y: 0, // yCenter 가 true 면 무시됨 (배너 height 안에서 수직 중앙으로 자동 정렬)
+      yCenter: true,
       gapTitleBody: 40,
       gapBodyCTA: 30,
       gapInsideTextBox: 4, // Title/Body FRAME 안 텍스트들 사이 간격
@@ -904,6 +907,19 @@ async function applyStyleToBanner(
         cur = cur.parent;
       }
     }
+  }
+
+  // 7) Y centering — config.yCenter === true 면 text container 의 y 를 배너 안 수직 중앙으로
+  //    (모든 sizing/layout 가 끝난 뒤 마지막에 계산해야 정확한 height 가 잡힘)
+  if (
+    config.container.yCenter &&
+    ctaNode &&
+    ctaNode.parent &&
+    ctaNode.parent !== banner
+  ) {
+    const cp = ctaNode.parent as unknown as { y: number; height: number };
+    const bannerH = (banner as unknown as { height: number }).height;
+    cp.y = (bannerH - cp.height) / 2;
   }
 }
 
