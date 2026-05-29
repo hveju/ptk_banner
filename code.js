@@ -437,6 +437,29 @@ function applyStyleToBanner(banner, sizeId) {
                 ly.y = config.textboxPosition.y;
             }
         }
+        // CTA / Body / Title 의 x = 0 (textbox 안에서 좌측 정렬)
+        for (const name of ["CTA", "Body", "Title"]) {
+            const layer = findByExactName(banner, name);
+            if (layer) {
+                layer.x = 0;
+            }
+        }
+        // Title 안에 들어있는 텍스트 레이어들(2개) 의 x 도 모두 0 으로
+        // (직접 child 가 아니어도 재귀로 모두 잡음)
+        const titleLayer = findByExactName(banner, "Title");
+        if (titleLayer) {
+            const setInnerTextsX = (node) => {
+                if ("children" in node) {
+                    for (const child of node.children) {
+                        if (child.type === "TEXT") {
+                            child.x = 0;
+                        }
+                        setInnerTextsX(child);
+                    }
+                }
+            };
+            setInnerTextsX(titleLayer);
+        }
     });
 }
 // ============================================================
