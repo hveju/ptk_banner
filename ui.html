@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        font-family: Inter, -apple-system, "Apple SD Gothic Neo", sans-serif;
+        margin: 0;
+        padding: 0;
+        color: #333;
+      }
+      .tab-nav {
+        display: flex;
+        border-bottom: 1px solid #e5e5e5;
+        background: #fafafa;
+      }
+      .tab-btn {
+        flex: 1;
+        padding: 11px 4px;
+        background: none;
+        border: none;
+        font-size: 11px;
+        color: #777;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+      }
+      .tab-btn.active {
+        color: #18a0fb;
+        font-weight: 700;
+        border-bottom-color: #18a0fb;
+        background: #fff;
+      }
+      .tab-content {
+        padding: 16px;
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+      }
+      h2 {
+        font-size: 14px;
+        margin: 0 0 4px;
+      }
+      p.desc {
+        font-size: 11px;
+        color: #888;
+        margin: 0 0 14px;
+        line-height: 1.5;
+      }
+      .size-item {
+        display: flex;
+        align-items: center;
+        padding: 7px 0;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .size-item input {
+        margin-right: 8px;
+      }
+      .size-all {
+        border-bottom: 1px solid #eee;
+        padding-bottom: 8px;
+        margin-bottom: 4px;
+      }
+      .buttons {
+        margin-top: 14px;
+        display: flex;
+        gap: 8px;
+      }
+      button.action {
+        flex: 1;
+        padding: 9px;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .primary {
+        background: #18a0fb;
+        color: #fff;
+      }
+      .primary:disabled {
+        background: #c4e3fb;
+        cursor: not-allowed;
+      }
+      .secondary {
+        background: #eee;
+        color: #333;
+      }
+      .hint {
+        font-size: 10px;
+        color: #aaa;
+        margin-top: 12px;
+        line-height: 1.5;
+      }
+      .status {
+        background: #f5f7fa;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 12px;
+        font-size: 12px;
+        line-height: 1.6;
+        margin-bottom: 12px;
+      }
+      .status.empty {
+        color: #999;
+      }
+      .status b {
+        color: #18a0fb;
+      }
+
+      /* 포컬 설정 탭 전용 */
+      .hidden {
+        display: none !important;
+      }
+      .img-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 0;
+        border-bottom: 1px solid #f0f0f0;
+      }
+      .img-row-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .img-row-name {
+        font-size: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .img-row-size {
+        font-size: 10px;
+        color: #999;
+        margin-top: 2px;
+      }
+      .badge {
+        display: inline-block;
+        background: #e6f7e9;
+        color: #2a8d3f;
+        padding: 1px 6px;
+        border-radius: 3px;
+        margin-left: 6px;
+      }
+      .img-row-btn {
+        flex: 0 0 auto !important;
+        padding: 6px 10px !important;
+      }
+      .link-btn {
+        background: none;
+        border: none;
+        color: #18a0fb;
+        font-size: 11px;
+        cursor: pointer;
+        padding: 0 0 8px;
+      }
+      #focal-canvas-wrapper {
+        position: relative;
+        margin: 4px auto 0;
+        border: 1px solid #ddd;
+        background:
+          repeating-conic-gradient(#f5f5f5 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+      }
+      #focal-img {
+        display: block;
+      }
+      #focal-paint {
+        position: absolute;
+        top: 0;
+        left: 0;
+        cursor: crosshair;
+        touch-action: none;
+      }
+      .brush-toolbar {
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+      }
+      .brush-toolbar label {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .brush-toolbar input[type="range"] {
+        flex: 1;
+      }
+      .tool-btn {
+        background: #eee;
+        border: none;
+        border-radius: 4px;
+        padding: 5px 8px;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .tool-btn.active {
+        background: #18a0fb;
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 탭 네비게이션 -->
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="resize">📐 사이즈</button>
+      <button class="tab-btn" data-tab="sync">🔄 동기화</button>
+      <button class="tab-btn" data-tab="focal">🖌 포컬</button>
+    </div>
+
+    <!-- 탭 1: 사이즈 생성 -->
+    <div class="tab-content active" data-content="resize">
+      <h2>배너 사이즈 만들기</h2>
+      <p class="desc">
+        프레임 1개를 선택한 뒤, 원하는 사이즈를 체크하고 [생성]을 누르세요.
+      </p>
+      <label class="size-item size-all">
+        <input id="size-check-all" type="checkbox" checked />
+        <b>전체 선택</b>
+      </label>
+      <div id="size-list">
+        <label class="size-item"><input type="checkbox" value="s_1920x1080" checked /> 1920 × 1080</label>
+        <label class="size-item"><input type="checkbox" value="s_780x780" checked /> 780 × 780</label>
+        <label class="size-item"><input type="checkbox" value="s_600x600" checked /> 600 × 600</label>
+        <label class="size-item"><input type="checkbox" value="s_700x240" checked /> 700 × 240</label>
+        <label class="size-item"><input type="checkbox" value="s_720x1248" checked /> 720 × 1248</label>
+        <label class="size-item"><input type="checkbox" value="s_720x1080" checked /> 720 × 1080</label>
+      </div>
+      <div class="buttons">
+        <button id="cancel" class="action secondary">닫기</button>
+        <button id="generate" class="action primary">생성</button>
+      </div>
+      <p class="hint">
+        💡 포컬포인트가 설정된 이미지는 자동으로 사이즈에 맞춰 크롭돼요.
+      </p>
+    </div>
+
+    <!-- 탭 2: 텍스트 동기화 -->
+    <div class="tab-content" data-content="sync">
+      <h2>텍스트 동기화</h2>
+      <p class="desc">
+        원본 프레임에서 텍스트를 수정한 뒤 원본을 선택하고 [동기화]를 누르면,
+        그 원본으로 만든 모든 배너의 텍스트가 자동 갱신돼요.
+      </p>
+      <div id="sync-status" class="status empty">선택 정보를 불러오는 중…</div>
+      <div class="buttons">
+        <button id="sync-btn" class="action primary" disabled>동기화 실행</button>
+      </div>
+      <p class="hint">
+        💡 텍스트 <b>내용</b>만 갈아끼우고, 각 사이즈의 폰트 크기·위치는
+        그대로 유지돼요.
+      </p>
+    </div>
+
+    <!-- 탭 3: 포컬포인트 -->
+    <div class="tab-content" data-content="focal">
+      <h2>이미지 포컬포인트</h2>
+      <p class="desc">
+        살리고 싶은 영역을 브러쉬로 칠해주세요. 다음에 사이즈를 생성할 때
+        그 영역이 중심에 오도록 자동 크롭됩니다.
+      </p>
+
+      <div id="focal-empty" class="focal-state status empty">
+        이미지가 들어 있는 프레임(또는 이미지 레이어)을 선택해주세요.
+      </div>
+
+      <div id="focal-list" class="focal-state hidden">
+        <div class="status">
+          이미지: <b id="focal-image-count">0개</b>
+        </div>
+        <div id="focal-images"></div>
+      </div>
+
+      <div id="focal-brush" class="focal-state hidden">
+        <button id="focal-back" class="link-btn">← 이미지 목록으로</button>
+        <div id="focal-canvas-wrapper">
+          <canvas id="focal-img"></canvas>
+          <canvas id="focal-paint"></canvas>
+        </div>
+        <div class="brush-toolbar">
+          <label>크기 <input id="focal-size" type="range" min="10" max="100" value="40" /></label>
+          <button id="focal-tool-brush" class="tool-btn active">🖌</button>
+          <button id="focal-tool-eraser" class="tool-btn">🧽</button>
+          <button id="focal-clear" class="tool-btn">전체삭제</button>
+        </div>
+        <div class="buttons">
+          <button id="focal-delete" class="action secondary">포컬 삭제</button>
+          <button id="focal-save" class="action primary">저장</button>
+        </div>
+        <p class="hint">
+          💡 빨간색으로 칠한 영역의 바운딩 박스가 포컬 영역으로 저장돼요.
+          저장 후엔 [사이즈] 탭에서 [생성]만 누르면 자동 적용됩니다.
+        </p>
+      </div>
+    </div>
+
+    <script>
+      // ============================================================
+      // 탭 전환
+      // ============================================================
+      document.querySelectorAll(".tab-btn").forEach(function (btn) {
+        btn.onclick = function () {
+          document.querySelectorAll(".tab-btn").forEach(function (b) {
+            b.classList.remove("active");
+          });
+          document.querySelectorAll(".tab-content").forEach(function (c) {
+            c.classList.remove("active");
+          });
+          btn.classList.add("active");
+          document
+            .querySelector('[data-content="' + btn.dataset.tab + '"]')
+            .classList.add("active");
+          if (btn.dataset.tab === "sync") {
+            send({ type: "request-status" });
+          } else if (btn.dataset.tab === "focal") {
+            send({ type: "request-images" });
+          }
+        };
+      });
+
+      function send(msg) {
+        parent.postMessage({ pluginMessage: msg }, "*");
+      }
+
+      // ============================================================
+      // 사이즈 생성 탭
+      // ============================================================
+
+      // 전체 선택 체크박스: 모든 사이즈를 한 번에 체크/해제
+      var allCheck = document.getElementById("size-check-all");
+      var sizeChecks = Array.prototype.slice.call(
+        document.querySelectorAll("#size-list input[type=checkbox]")
+      );
+      allCheck.onchange = function () {
+        sizeChecks.forEach(function (cb) {
+          cb.checked = allCheck.checked;
+        });
+        allCheck.indeterminate = false;
+      };
+      // 개별 체크 변화 시 전체 체크 상태 자동 동기화 (중간 상태 = indeterminate)
+      sizeChecks.forEach(function (cb) {
+        cb.onchange = function () {
+          var checkedCount = sizeChecks.filter(function (c) {
+            return c.checked;
+          }).length;
+          allCheck.checked = checkedCount === sizeChecks.length;
+          allCheck.indeterminate =
+            checkedCount > 0 && checkedCount < sizeChecks.length;
+        };
+      });
+
+      document.getElementById("generate").onclick = function () {
+        var checked = Array.prototype.slice
+          .call(document.querySelectorAll("#size-list input[type=checkbox]:checked"))
+          .map(function (el) {
+            return el.value;
+          });
+        send({ type: "generate", selectedSizeIds: checked });
+      };
+      document.getElementById("cancel").onclick = function () {
+        send({ type: "cancel" });
+      };
+
+      // ============================================================
+      // 동기화 탭
+      // ============================================================
+      document.getElementById("sync-btn").onclick = function () {
+        send({ type: "sync" });
+      };
+
+      // ============================================================
+      // 포컬포인트 탭
+      // ============================================================
+      var currentImageHash = null;
+      var imgCtx = null,
+        paintCtx = null;
+      var brushSize = 40;
+      var brushTool = "brush"; // 'brush' | 'eraser'
+      var isDrawing = false;
+
+      function showFocalState(state) {
+        document.querySelectorAll(".focal-state").forEach(function (s) {
+          s.classList.add("hidden");
+        });
+        document.getElementById("focal-" + state).classList.remove("hidden");
+      }
+
+      function renderImages(images) {
+        document.getElementById("focal-image-count").textContent =
+          images.length + "개";
+        var wrapper = document.getElementById("focal-images");
+        wrapper.innerHTML = "";
+        if (images.length === 0) {
+          showFocalState("empty");
+          return;
+        }
+        showFocalState("list");
+        images.forEach(function (img) {
+          var row = document.createElement("div");
+          row.className = "img-row";
+          row.innerHTML =
+            '<div class="img-row-info">' +
+            '<div class="img-row-name">' +
+            escapeHtml(img.layerName) +
+            "</div>" +
+            '<div class="img-row-size">' +
+            img.width +
+            " × " +
+            img.height +
+            " px" +
+            (img.hasROI ? '<span class="badge">✓ 포컬 있음</span>' : "") +
+            "</div>" +
+            "</div>" +
+            '<button class="action primary img-row-btn">편집</button>';
+          row.querySelector("button").onclick = function () {
+            currentImageHash = img.imageHash;
+            send({ type: "request-image-bytes", imageHash: img.imageHash });
+          };
+          wrapper.appendChild(row);
+        });
+      }
+
+      function loadImageToCanvas(base64, existingROI) {
+        showFocalState("brush");
+        var imgEl = new Image();
+        imgEl.onload = function () {
+          var maxW = 312,
+            maxH = 260;
+          var w = imgEl.naturalWidth,
+            h = imgEl.naturalHeight;
+          var scale = Math.min(maxW / w, maxH / h, 1);
+          var cw = Math.max(1, Math.round(w * scale));
+          var ch = Math.max(1, Math.round(h * scale));
+          var imgCanvas = document.getElementById("focal-img");
+          var paintCanvas = document.getElementById("focal-paint");
+          imgCanvas.width = paintCanvas.width = cw;
+          imgCanvas.height = paintCanvas.height = ch;
+          document.getElementById("focal-canvas-wrapper").style.width =
+            cw + "px";
+          imgCtx = imgCanvas.getContext("2d");
+          paintCtx = paintCanvas.getContext("2d");
+          imgCtx.drawImage(imgEl, 0, 0, cw, ch);
+          paintCtx.clearRect(0, 0, cw, ch);
+          if (existingROI) {
+            paintCtx.fillStyle = "rgba(255, 32, 32, 0.45)";
+            paintCtx.fillRect(
+              existingROI.x * cw,
+              existingROI.y * ch,
+              existingROI.w * cw,
+              existingROI.h * ch
+            );
+          }
+        };
+        imgEl.onerror = function () {
+          alert("이미지를 불러오지 못했어요. (지원 안 되는 포맷일 수 있어요)");
+          showFocalState("list");
+        };
+        imgEl.src = "data:image/png;base64," + base64;
+      }
+
+      function drawAt(e) {
+        var rect = document.getElementById("focal-paint").getBoundingClientRect();
+        var x = e.clientX - rect.left;
+        var y = e.clientY - rect.top;
+        paintCtx.beginPath();
+        paintCtx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
+        if (brushTool === "brush") {
+          paintCtx.globalCompositeOperation = "source-over";
+          paintCtx.fillStyle = "rgba(255, 32, 32, 0.5)";
+        } else {
+          paintCtx.globalCompositeOperation = "destination-out";
+        }
+        paintCtx.fill();
+      }
+
+      function computePaintBBox() {
+        var c = document.getElementById("focal-paint");
+        var w = c.width,
+          h = c.height;
+        if (!w || !h || !paintCtx) return null;
+        var d = paintCtx.getImageData(0, 0, w, h).data;
+        var minX = w,
+          minY = h,
+          maxX = -1,
+          maxY = -1;
+        for (var y = 0; y < h; y++) {
+          for (var x = 0; x < w; x++) {
+            if (d[(y * w + x) * 4 + 3] > 0) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+        if (maxX < 0) return null;
+        return {
+          x: minX / w,
+          y: minY / h,
+          w: (maxX - minX + 1) / w,
+          h: (maxY - minY + 1) / h,
+        };
+      }
+
+      // 브러쉬 이벤트 바인딩 (페이지 로드 시 한 번)
+      (function setupBrush() {
+        var canvas = document.getElementById("focal-paint");
+        canvas.onpointerdown = function (e) {
+          if (!paintCtx) return;
+          isDrawing = true;
+          canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+          drawAt(e);
+        };
+        canvas.onpointermove = function (e) {
+          if (isDrawing) drawAt(e);
+        };
+        canvas.onpointerup = function () {
+          isDrawing = false;
+        };
+        canvas.onpointerleave = function () {
+          isDrawing = false;
+        };
+        document.getElementById("focal-size").oninput = function (e) {
+          brushSize = +e.target.value;
+        };
+        document.getElementById("focal-tool-brush").onclick = function () {
+          brushTool = "brush";
+          this.classList.add("active");
+          document.getElementById("focal-tool-eraser").classList.remove("active");
+        };
+        document.getElementById("focal-tool-eraser").onclick = function () {
+          brushTool = "eraser";
+          this.classList.add("active");
+          document.getElementById("focal-tool-brush").classList.remove("active");
+        };
+        document.getElementById("focal-clear").onclick = function () {
+          var c = document.getElementById("focal-paint");
+          if (paintCtx) paintCtx.clearRect(0, 0, c.width, c.height);
+        };
+        document.getElementById("focal-back").onclick = function () {
+          currentImageHash = null;
+          send({ type: "request-images" });
+        };
+        document.getElementById("focal-save").onclick = function () {
+          if (!currentImageHash) return;
+          var bbox = computePaintBBox();
+          if (!bbox) {
+            alert("영역을 칠한 후 저장해주세요.");
+            return;
+          }
+          send({ type: "save-roi", imageHash: currentImageHash, roi: bbox });
+        };
+        document.getElementById("focal-delete").onclick = function () {
+          if (!currentImageHash) return;
+          send({ type: "clear-roi", imageHash: currentImageHash });
+        };
+      })();
+
+      // ============================================================
+      // code.js → UI 메시지
+      // ============================================================
+      onmessage = function (event) {
+        var msg = event.data.pluginMessage;
+        if (!msg) return;
+
+        if (msg.type === "selection-status") {
+          var statusEl = document.getElementById("sync-status");
+          var btn = document.getElementById("sync-btn");
+          if (msg.sourceName) {
+            statusEl.classList.remove("empty");
+            statusEl.innerHTML =
+              "원본: <b>" +
+              escapeHtml(msg.sourceName) +
+              "</b><br>이 원본으로 만든 배너: <b>" +
+              msg.childCount +
+              "개</b>";
+            btn.disabled = msg.childCount === 0;
+          } else {
+            statusEl.classList.add("empty");
+            statusEl.innerHTML =
+              "원본 프레임 1개를 선택해주세요.<br>" +
+              "(아직 사이즈 생성을 안 했다면 먼저 [사이즈] 탭에서 만들어주세요.)";
+            btn.disabled = true;
+          }
+        } else if (msg.type === "images-list") {
+          renderImages(msg.images || []);
+        } else if (msg.type === "image-bytes") {
+          loadImageToCanvas(msg.base64, msg.existingROI);
+        }
+      };
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+
+      // 첫 로드 시 두 탭 모두에 대해 초기 상태 요청
+      send({ type: "request-status" });
+      send({ type: "request-images" });
+    </script>
+  </body>
+</html>

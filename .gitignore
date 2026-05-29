@@ -1,0 +1,14 @@
+# Dependencies (npm install 로 재생성 가능 — Git 에 안 올림)
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+*.swp
