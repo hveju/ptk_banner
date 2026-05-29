@@ -27,8 +27,38 @@ const PRESET_SIZES = [
     { id: "s_720x1080", label: "720 × 1080", w: 720, h: 1080 },
 ];
 const SIZE_STYLES = {
-    s_1920x1080: { textboxPosition: { x: 240, y: 390 } },
-    // 다른 사이즈는 사용자 데이터 받는 대로 추가
+    s_1920x1080: {
+        textboxPosition: { x: 240, y: 390 },
+        gaps: { titleBody: 40, bodyCta: 30, insideTitle: 4 },
+        textSizes: { title: 58, body: 28, cta: 14 },
+    },
+    s_780x780: {
+        textboxPosition: { x: 40, y: "center" },
+        gaps: { titleBody: 5, bodyCta: 15, insideTitle: -2 },
+        textSizes: { title: 52, body: 18, cta: 14 },
+    },
+    s_600x600: {
+        textboxPosition: { x: 40, y: "center" },
+        gaps: { titleBody: 5, bodyCta: 15, insideTitle: -2 },
+        textSizes: { title: 52, body: 5, cta: 14 },
+    },
+    s_700x240: {
+        // ※ 디자이너님 데이터는 "500 × 240" 으로 표기되어 있었음 — preset 이 700×240 이라 여기 매핑.
+        //    preset 을 500×240 으로 바꾸시려면 PRESET_SIZES 와 ui.html 도 같이 수정 필요.
+        textboxPosition: { x: 34, y: 61 },
+        gaps: { titleBody: 10, bodyCta: 10, insideTitle: 2 },
+        textSizes: { title: 18, body: 10, cta: 14 },
+    },
+    s_720x1248: {
+        textboxPosition: { x: 120, y: "center" },
+        gaps: { titleBody: 42, bodyCta: 48, insideTitle: 12 },
+        textSizes: { title: 58, body: 32, cta: 24 },
+    },
+    s_720x1080: {
+        textboxPosition: { x: 90, y: "center" },
+        gaps: { titleBody: 42, bodyCta: 43, insideTitle: 6 },
+        textSizes: { title: 60, body: 32, cta: 24 },
+    },
 };
 const SOURCE_KEY = "bannerResizer.sourceFrameId"; // 자식 배너 → 원본 ID
 const TEXT_ID_KEY = "bannerResizer.textId"; // 텍스트 → 안정 ID
@@ -429,34 +459,76 @@ function findByExactName(node, name) {
     }
     return null;
 }
+// 레이어(또는 자손) 안의 모든 텍스트 노드에 fontSize 를 설정합니다.
+// (폰트 로드 후 적용 — 폰트 누락 시 해당 텍스트만 스킵하고 계속)
+function setTextSizeInside(node, size) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const texts = [];
+        const walk = (n) => {
+            if (n.type === "TEXT") {
+                texts.push(n);
+            }
+            else if ("children" in n) {
+                for (const c of n.children)
+                    walk(c);
+            }
+        };
+        walk(node);
+        for (const t of texts) {
+            try {
+                yield loadFontsForText(t);
+                t.fontSize = size;
+            }
+            catch (e) {
+                // 폰트 로드 실패 시 무시
+            }
+        }
+    });
+}
 // 생성된 배너에 사이즈별 스타일을 적용합니다.
-// 현재 동작: SIZE_STYLES 에 textboxPosition 이 정의돼 있으면
-// "textbox" 이름의 레이어(그룹/프레임)를 그 위치(X, Y)로 이동.
-// 폰트·텍스트·정렬·CTA 박스 등 모든 스타일은 원본 디자인 그대로 유지.
+//   1) 텍스트 사이즈 (Title/Body/CTA 안 텍스트들의 fontSize)
+//   2) Title FRAME 안 두 텍스트 사이 간격 (itemSpacing)
+//   3) CTA / Body / Title 본인의 x = 0 + Title 안 텍스트도 x = 0
+//   4) gap 설정에 따라 Title/Body/CTA 의 y 위치를 명시적으로 계산
+//   5) textbox 위치 (x 직접, y 는 숫자 또는 "center")
 function applyStyleToBanner(banner, sizeId) {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b;
         const config = SIZE_STYLES[sizeId];
         if (!config)
             return;
-        if (config.textboxPosition) {
-            const textbox = findByExactName(banner, "textbox");
-            if (textbox) {
-                const ly = textbox;
-                ly.x = config.textboxPosition.x;
-                ly.y = config.textboxPosition.y;
+        const title = findByExactName(banner, "Title");
+        const body = findByExactName(banner, "Body");
+        const cta = findByExactName(banner, "CTA");
+        // 1) 텍스트 사이즈 변경 (auto-resize 로 layer height 가 자동 갱신됨)
+        if (config.textSizes) {
+            if (title && config.textSizes.title !== undefined) {
+                yield setTextSizeInside(title, config.textSizes.title);
+            }
+            if (body && config.textSizes.body !== undefined) {
+                yield setTextSizeInside(body, config.textSizes.body);
+            }
+            if (cta && config.textSizes.cta !== undefined) {
+                yield setTextSizeInside(cta, config.textSizes.cta);
             }
         }
-        // CTA / Body / Title 의 x = 0 (textbox 안에서 좌측 정렬)
-        for (const name of ["CTA", "Body", "Title"]) {
-            const layer = findByExactName(banner, name);
-            if (layer) {
+        // 2) Title 안 두 텍스트 사이 간격 (Title 이 auto-layout 일 때 itemSpacing 적용)
+        if (config.gaps &&
+            config.gaps.insideTitle !== undefined &&
+            title &&
+            "layoutMode" in title) {
+            const ty = title;
+            if (ty.layoutMode && ty.layoutMode !== "NONE") {
+                ty.itemSpacing = config.gaps.insideTitle;
+            }
+        }
+        // 3) CTA / Body / Title 본인의 x = 0
+        for (const layer of [title, body, cta]) {
+            if (layer)
                 layer.x = 0;
-            }
         }
-        // Title 안에 들어있는 텍스트 레이어들(2개) 의 x 도 모두 0 으로
-        // (직접 child 가 아니어도 재귀로 모두 잡음)
-        const titleLayer = findByExactName(banner, "Title");
-        if (titleLayer) {
+        // Title 안 텍스트 레이어들의 x = 0 (재귀)
+        if (title) {
             const setInnerTextsX = (node) => {
                 if ("children" in node) {
                     for (const child of node.children) {
@@ -467,7 +539,35 @@ function applyStyleToBanner(banner, sizeId) {
                     }
                 }
             };
-            setInnerTextsX(titleLayer);
+            setInnerTextsX(title);
+        }
+        // 4) Title / Body / CTA 의 명시적 y 위치 — gap 설정 기반
+        //   Title 의 y = 0
+        //   Body  의 y = title.bottom + gapTitleBody
+        //   CTA   의 y = body.bottom  + gapBodyCta
+        if (config.gaps && title && body && cta) {
+            const titleH = title.height;
+            const bodyH = body.height;
+            const gapTB = (_a = config.gaps.titleBody) !== null && _a !== void 0 ? _a : 0;
+            const gapBC = (_b = config.gaps.bodyCta) !== null && _b !== void 0 ? _b : 0;
+            title.y = 0;
+            body.y = titleH + gapTB;
+            cta.y = titleH + gapTB + bodyH + gapBC;
+        }
+        // 5) textbox 위치 (x 직접, y 는 숫자 또는 "center")
+        if (config.textboxPosition) {
+            const textbox = findByExactName(banner, "textbox");
+            if (textbox) {
+                const ly = textbox;
+                ly.x = config.textboxPosition.x;
+                if (config.textboxPosition.y === "center") {
+                    const bannerH = banner.height;
+                    ly.y = (bannerH - ly.height) / 2;
+                }
+                else {
+                    ly.y = config.textboxPosition.y;
+                }
+            }
         }
     });
 }
