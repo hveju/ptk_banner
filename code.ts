@@ -191,37 +191,56 @@ async function generateBanners(selectedSizeIds: string[]): Promise<void> {
         y: number;
         resize: (w: number, h: number) => void;
       };
-      if (info.isLeaf && !info.hasFocal) {
-        // ③ 포컬 없는 이미지 — 원본 비율 유지하며 새 프레임을 cover.
+      if (info.isLeaf) {
+        // 이미지 레이어 — 포컬 유무 상관없이 원본 비율 유지한 채 cover scale.
         //   scale = max(target.w/origW, target.h/origH)
-        //     → 양쪽 모두 frame 을 덮는 가장 작은 비율 (= cover)
-        //   결과: 한 쪽은 딱 맞고, 다른 한 쪽은 frame 밖으로 삐져나옴.
-        //   레이어 비율 = 이미지 비율이라 image fill (FILL 모드) 은 비율 정확히 일치 → 크롭/왜곡 없음.
-        //   frame.clipsContent 가 알아서 잘라주고, 디자이너는 드래그로 위치 조정 가능.
+        //   레이어 비율 = 이미지 비율 → image fill (FILL 모드) 이라 절대 안 찌그러짐.
         const scale = Math.max(target.w / info.origW, target.h / info.origH);
         const newW = info.origW * scale;
         const newH = info.origH * scale;
         if (typeof ly.resize === "function") {
           ly.resize(newW, newH);
         }
-        ly.x = (target.w - newW) / 2;
-        ly.y = (target.h - newH) / 2;
+
+        // 위치 결정:
+        //   - 포컬 있음: focal 중심이 target 중앙에 오도록 (layer 가 cover 유지하게 clamp)
+        //   - 포컬 없음: 중앙 배치
+        let focal: { x: number; y: number } | null = null;
+        if (info.hasFocal && "fills" in info.node && info.node.fills !== figma.mixed) {
+          for (const paint of info.node.fills as readonly Paint[]) {
+            if (paint.type === "IMAGE" && paint.imageHash) {
+              const roi = loadROI(paint.imageHash);
+              if (roi) {
+                focal = { x: roi.x + roi.w / 2, y: roi.y + roi.h / 2 };
+                break;
+              }
+            }
+          }
+        }
+        if (focal) {
+          let posX = target.w / 2 - focal.x * newW;
+          let posY = target.h / 2 - focal.y * newH;
+          // layer 가 target 프레임을 계속 cover 하도록 클램프
+          posX = Math.min(0, Math.max(target.w - newW, posX));
+          posY = Math.min(0, Math.max(target.h - newH, posY));
+          ly.x = posX;
+          ly.y = posY;
+        } else {
+          ly.x = (target.w - newW) / 2;
+          ly.y = (target.h - newH) / 2;
+        }
       } else {
-        // ①② 컨테이너 또는 포컬 있는 이미지 — 새 프레임 크기로 강제
+        // 컨테이너 (image fill 없는 그룹/프레임) — 새 프레임 크기로 강제
         if (typeof ly.resize === "function") {
           ly.resize(target.w, target.h);
         }
         ly.x = 0;
         ly.y = 0;
-        // [컨테이너의 clip 비활성화] — 안에 있는 cover-scale 이미지가
-        // 컨테이너 경계에 갇히지 않도록 함. 결과적으로 이미지는 원본 프레임
-        // 경계까지만 잘리고, 디자이너님이 자유롭게 드래그할 수 있어요.
+        // 안의 cover-scale 이미지가 컨테이너 경계에 갇히지 않도록 clip 해제
         // (cover 컨테이너 본인은 어차피 원본 프레임 크기와 동일해서 시각적 차이 없음)
-        if (!info.isLeaf) {
-          const fy = info.node as unknown as { clipsContent?: boolean };
-          if (typeof fy.clipsContent === "boolean") {
-            fy.clipsContent = false;
-          }
+        const fy = info.node as unknown as { clipsContent?: boolean };
+        if (typeof fy.clipsContent === "boolean") {
+          fy.clipsContent = false;
         }
       }
     }
@@ -438,27 +457,14 @@ function applyROIsInNode(node: SceneNode): void {
     for (let i = 0; i < newFills.length; i++) {
       const paint = newFills[i];
       if (paint.type === "IMAGE" && paint.imageHash) {
-        const roi = loadROI(paint.imageHash);
-        if (roi) {
-          // ① 저장된 포컬포인트가 있으면 최우선 — 칠한 영역 중심으로 크롭
-          newFills[i] = {
-            ...paint,
-            scaleMode: "CROP",
-            imageTransform: computeCropTransform(roi, anyNode.width, anyNode.height),
-          };
+        // 포컬은 더 이상 CROP transform 으로 적용하지 않고 (찌그러짐 원인),
+        // cover scale + layer 위치로 적용 (generateBanners 의 cover restore).
+        // 그래서 image fill 은 항상 FILL 모드 + 변환 제거 → 절대 안 찌그러짐.
+        const cleanPaint: { [k: string]: unknown } = { ...paint, scaleMode: "FILL" };
+        delete cleanPaint.imageTransform;
+        if (paint.scaleMode !== "FILL" || paint.imageTransform) {
+          newFills[i] = cleanPaint as unknown as Paint;
           modified = true;
-        } else {
-          // ② 포컬포인트 없으면 무조건 FILL 모드 + 변환 제거.
-          //   FILL 모드여도 남아있는 imageTransform 이 영향을 줄 수 있어서
-          //   매번 새로 깨끗한 paint 를 만들어줍니다. 이러면 Figma 가
-          //   순수하게 "비율 유지한 채 덮기" 만 하므로 절대 찌그러지지 않음.
-          const cleanPaint: { [k: string]: unknown } = { ...paint, scaleMode: "FILL" };
-          delete cleanPaint.imageTransform;
-          // 이미 같은 상태면 굳이 갱신 안 함 (성능)
-          if (paint.scaleMode !== "FILL" || paint.imageTransform) {
-            newFills[i] = cleanPaint as unknown as Paint;
-            modified = true;
-          }
         }
       }
     }
