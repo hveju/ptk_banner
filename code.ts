@@ -25,90 +25,15 @@ const PRESET_SIZES: { id: string; label: string; w: number; h: number }[] = [
 //   - 정의 없는 사이즈는 원본 그대로
 //   - 필요한 레이어 이름: "Title", "Body", "CTA" (대소문자 일치)
 // ============================================================
-interface TextSpec {
-  fontFamilyEn?: string; // 영문일 때 (한글/영문 자동 감지용)
-  fontFamilyKo?: string; // 한글일 때
-  fontFamily?: string;   // 감지 안 함 — 단일 폰트
-  fontSize: number;
-  fontWeight: number;
-  color: string;
-  textAlign?: "LEFT" | "CENTER" | "RIGHT" | "JUSTIFIED";
-}
-interface CTABoxSpec {
-  width: number;
-  height: number;
-  cornerRadius: number;
-  fillHex: string;
-  strokeHex: string;
-  strokeWidth: number;
-}
-interface ContainerSpec {
-  // text container 가 배너 프레임 안에서 위치할 좌표 (좌상단 기준)
-  x: number;
-  y: number;
-  // true 면 y 값을 무시하고 배너 height 안에서 수직 중앙으로 자동 정렬
-  yCenter?: boolean;
-  // text container 안 children 간 간격
-  gapTitleBody: number; // Title ↔ Body
-  gapBodyCTA: number;   // Body ↔ CTA
-  // Title/Body 가 FRAME 일 때 그 안 텍스트 레이어들 사이 간격
-  gapInsideTextBox?: number;
-  // 배너 안 모든 텍스트 레이어에 일괄 적용할 정렬 (Title/Body/CTA 이름 매칭과 무관)
-  textAlign?: "LEFT" | "CENTER" | "RIGHT" | "JUSTIFIED";
-}
-interface SizeStyleConfig {
-  container: ContainerSpec;
-  title: TextSpec;
-  body: TextSpec;
-  ctaText: TextSpec;
-  ctaBox: CTABoxSpec;
+// 사이즈별 설정 — 지금은 "textbox" 레이어(그룹/프레임)의 위치만 관리.
+// 텍스트 폰트·사이즈·정렬·CTA 박스 등 모든 스타일은 원본 디자인 그대로 유지.
+interface SizeStyle {
+  textboxPosition?: { x: number; y: number };
 }
 
-const SIZE_STYLES: { [sizeId: string]: SizeStyleConfig } = {
-  s_1920x1080: {
-    container: {
-      x: 240,
-      y: 340,
-      gapTitleBody: 40,
-      gapBodyCTA: 30,
-      gapInsideTextBox: 4, // Title FRAME 안 두 텍스트 사이 간격 (고정 4px)
-      textAlign: "LEFT", // 모든 텍스트 일괄 왼쪽 정렬
-    },
-    title: {
-      // Figma Dev Mode export 에 따라 family 이름에 weight 가 포함되어 있음.
-      // 그래서 fontWeight 는 400(=Regular style) 로 두고 family 이름이 weight 를 표현.
-      fontFamilyEn: "Samsung Sharp Sans-Bold",
-      fontFamilyKo: "SamsungOneKoreanOTF-700",
-      fontSize: 58,
-      fontWeight: 400,
-      color: "#FFFFFF",
-      textAlign: "LEFT",
-    },
-    body: {
-      fontFamily: "SamsungOneKoreanOTF-400",
-      fontSize: 28,
-      fontWeight: 400,
-      color: "#FFFFFF",
-      textAlign: "LEFT",
-    },
-    ctaText: {
-      // CTA 텍스트는 family 가 "-700" (= 굵은 글씨), style 은 Regular.
-      fontFamily: "SamsungOneKoreanOTF-700",
-      fontSize: 14,
-      fontWeight: 400,
-      color: "#000000",
-      textAlign: "LEFT",
-    },
-    ctaBox: {
-      width: 122,
-      height: 40,
-      cornerRadius: 20,
-      fillHex: "#D9D9D9",
-      strokeHex: "#FFFFFF",
-      strokeWidth: 1,
-    },
-  },
-  // 다른 사이즈는 사용자 데이터 받는 대로 같은 양식으로 추가
+const SIZE_STYLES: { [sizeId: string]: SizeStyle } = {
+  s_1920x1080: { textboxPosition: { x: 240, y: 390 } },
+  // 다른 사이즈는 사용자 데이터 받는 대로 추가
 };
 
 const SOURCE_KEY = "bannerResizer.sourceFrameId"; // 자식 배너 → 원본 ID
@@ -553,36 +478,6 @@ function applyROIsInNode(node: SceneNode): void {
 //        SIZE_STYLES 에 정의된 사이즈일 때만 동작 (다른 사이즈는 무시).
 // ============================================================
 
-// CSS font-weight 숫자 → Figma 폰트 스타일 이름 매핑
-function fontStyleForWeight(weight: number): string {
-  if (weight >= 900) return "Black";
-  if (weight >= 800) return "ExtraBold";
-  if (weight >= 700) return "Bold";
-  if (weight >= 600) return "SemiBold";
-  if (weight >= 500) return "Medium";
-  if (weight >= 400) return "Regular";
-  if (weight >= 300) return "Light";
-  if (weight >= 200) return "ExtraLight";
-  return "Thin";
-}
-
-// 텍스트에 한글이 한 글자라도 있는지 검사 (Title 의 폰트 자동 결정용)
-function hasKoreanText(text: string): boolean {
-  return /[가-힯ㄱ-ㆎᄀ-ᇿ]/.test(text);
-}
-
-// #FFF / #FFFFFF / #FFFFFFFF → Figma RGB (0~1 범위)
-function hexToRGB(hex: string): RGB {
-  let h = hex.replace("#", "").trim();
-  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
-  if (h.length === 8) h = h.substring(0, 6); // 알파 무시
-  return {
-    r: parseInt(h.substring(0, 2), 16) / 255,
-    g: parseInt(h.substring(2, 4), 16) / 255,
-    b: parseInt(h.substring(4, 6), 16) / 255,
-  };
-}
-
 // 트리 안에서 이름이 정확히 일치하는 첫 레이어 찾기
 function findByExactName(node: SceneNode, name: string): SceneNode | null {
   if (node.name === name) return node;
@@ -595,330 +490,24 @@ function findByExactName(node: SceneNode, name: string): SceneNode | null {
   return null;
 }
 
-// 트리 안에서 이름이 정확히 일치하는 모든 레이어 찾기
-// (예: "Title" 이라는 텍스트 레이어가 여러 개 있을 때 — 영문줄/한글줄 분리되어 있는 경우)
-function findAllByExactName(node: SceneNode, name: string): SceneNode[] {
-  const results: SceneNode[] = [];
-  const walk = (n: SceneNode) => {
-    if (n.name === name) results.push(n);
-    if ("children" in n) {
-      for (const child of n.children) walk(child);
-    }
-  };
-  walk(node);
-  return results;
-}
-
-// CTA 컨테이너 안 첫 텍스트 노드 찾기 (라벨 텍스트 스타일 적용용)
-function findFirstTextInside(node: SceneNode): TextNode | null {
-  if (node.type === "TEXT") return node;
-  if ("children" in node) {
-    for (const child of node.children) {
-      const found = findFirstTextInside(child);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-// 한 텍스트 노드에 TextSpec 을 적용.
-// 폰트 로드가 실패해도 size · lineHeight · color · align 은 그대로 적용되도록 단계 분리.
-async function applyTextSpec(text: TextNode, spec: TextSpec): Promise<void> {
-  // 폰트 패밀리: en/ko 양쪽 사양이 있으면 텍스트 내용으로 자동 감지
-  let family: string;
-  if (spec.fontFamilyEn && spec.fontFamilyKo) {
-    family = hasKoreanText(text.characters)
-      ? spec.fontFamilyKo
-      : spec.fontFamilyEn;
-  } else {
-    family = spec.fontFamily || spec.fontFamilyKo || spec.fontFamilyEn || "Inter";
-  }
-  const style = fontStyleForWeight(spec.fontWeight);
-  const fontName: FontName = { family, style };
-
-  // 1) 기존 폰트 로드 시도 (실패해도 계속 — 일부 속성은 그래도 적용될 수 있음)
-  try {
-    await loadFontsForText(text);
-  } catch (e) {
-    // 기존 폰트 누락 시 일부 속성 변경이 어려울 수 있지만, 일단 계속 진행
-  }
-
-  // 2) 새 폰트 로드 + fontName 변경 시도
-  try {
-    await figma.loadFontAsync(fontName);
-    text.fontName = fontName;
-  } catch (e) {
-    figma.notify(
-      "⚠️ 폰트 누락: " + family + " " + style + " — 폰트는 그대로, 나머지 적용 시도"
-    );
-  }
-
-  // 3) 각 속성을 독립 try/catch 로 처리 — 하나가 실패해도 다른 속성은 시도
-  try { text.fontSize = spec.fontSize; } catch (e) {}
-  try { text.lineHeight = { unit: "AUTO" }; } catch (e) {}
-  try { text.fills = [{ type: "SOLID", color: hexToRGB(spec.color) }]; } catch (e) {}
-  if (spec.textAlign) {
-    try { text.textAlignHorizontal = spec.textAlign; } catch (e) {}
-  }
-}
-
-// Title 과 Body 가 같은 부모의 평행 sibling 이라면 둘을 묶는 wrapper frame 을 생성.
-// 이렇게 해야 Title↔Body gap (예: 40) 과 Body↔CTA gap (예: 30) 을 동시에 표현 가능.
-// (Figma auto-layout 의 itemSpacing 은 컨테이너당 1개라서 nesting 이 필요)
-function ensureNestedStructure(banner: SceneNode): void {
-  const title = findByExactName(banner, "Title");
-  const body = findByExactName(banner, "Body");
-  if (!title || !body) return;
-  if (title.parent !== body.parent) return; // 이미 nested 구조
-  if (title.parent === banner) return; // 배너 자체가 부모면 nesting 안 함
-
-  const parent = title.parent as unknown as {
-    layoutMode?: string;
-    children?: readonly SceneNode[];
-    insertChild?: (index: number, child: SceneNode) => void;
-  };
-  if (!parent || !parent.layoutMode || parent.layoutMode === "NONE") return;
-  if (!parent.children || !parent.insertChild) return;
-
-  // wrapper frame 생성 (Title 과 Body 를 묶는 안쪽 그룹)
-  const wrapper = figma.createFrame();
-  wrapper.name = "Title-Body Group";
-  wrapper.layoutMode = parent.layoutMode as "VERTICAL" | "HORIZONTAL";
-  wrapper.primaryAxisSizingMode = "AUTO";
-  wrapper.counterAxisSizingMode = "AUTO";
-  wrapper.fills = [];
-  wrapper.clipsContent = false;
-
-  // Title 의 위치(낮은 쪽 index) 에 wrapper 삽입
-  const titleIdx = parent.children.indexOf(title);
-  const bodyIdx = parent.children.indexOf(body);
-  const minIdx = Math.min(titleIdx, bodyIdx);
-  parent.insertChild(minIdx, wrapper);
-
-  // Title 과 Body 를 wrapper 안으로 이동 (Title → Body 순서)
-  wrapper.appendChild(title);
-  wrapper.appendChild(body);
-}
-
 // 생성된 배너에 사이즈별 스타일을 적용합니다.
+// 현재 동작: SIZE_STYLES 에 textboxPosition 이 정의돼 있으면
+// "textbox" 이름의 레이어(그룹/프레임)를 그 위치(X, Y)로 이동.
+// 폰트·텍스트·정렬·CTA 박스 등 모든 스타일은 원본 디자인 그대로 유지.
 async function applyStyleToBanner(
   banner: SceneNode,
   sizeId: string
 ): Promise<void> {
   const config = SIZE_STYLES[sizeId];
-  if (!config) return; // 정의 없으면 그대로 둠
+  if (!config) return;
 
-  // 0) 구조 보정 — Title, Body 가 평행 sibling 이면 wrapper 로 묶음
-  //    (Figma auto-layout 의 itemSpacing 은 1개뿐이라 gap 두 개를 표현하려면 nesting 필요)
-  ensureNestedStructure(banner);
-
-  // 1) Title — "Title" 이름의 레이어들 찾기. TEXT 면 직접, FRAME/GROUP 이면 안 텍스트들 모두.
-  //    각 텍스트는 내용을 보고 KR/EN 폰트를 자동 감지해 적용.
-  const titleNodes = findAllByExactName(banner, "Title");
-  const titleTexts: TextNode[] = [];
-  for (const c of titleNodes) {
-    if (c.type === "TEXT") {
-      titleTexts.push(c);
-    } else {
-      collectTexts(c, (t) => titleTexts.push(t));
+  if (config.textboxPosition) {
+    const textbox = findByExactName(banner, "textbox");
+    if (textbox) {
+      const ly = textbox as unknown as { x: number; y: number };
+      ly.x = config.textboxPosition.x;
+      ly.y = config.textboxPosition.y;
     }
-  }
-  for (const t of titleTexts) {
-    await applyTextSpec(t, config.title);
-  }
-
-  // 2) Body — 마찬가지로 (TEXT 또는 FRAME 안 텍스트들)
-  const bodyNodes = findAllByExactName(banner, "Body");
-  const bodyTexts: TextNode[] = [];
-  for (const c of bodyNodes) {
-    if (c.type === "TEXT") {
-      bodyTexts.push(c);
-    } else {
-      collectTexts(c, (t) => bodyTexts.push(t));
-    }
-  }
-  for (const t of bodyTexts) {
-    await applyTextSpec(t, config.body);
-  }
-
-  // 3) CTA — 박스 + 안 텍스트
-  const ctaNode = findByExactName(banner, "CTA");
-  if (ctaNode) {
-    const cy = ctaNode as unknown as {
-      resize: (w: number, h: number) => void;
-      cornerRadius?: number;
-      fills?: Paint[];
-      strokes?: Paint[];
-      strokeWeight?: number;
-    };
-    if (typeof cy.resize === "function") {
-      cy.resize(config.ctaBox.width, config.ctaBox.height);
-    }
-    if ("cornerRadius" in cy) cy.cornerRadius = config.ctaBox.cornerRadius;
-    cy.fills = [{ type: "SOLID", color: hexToRGB(config.ctaBox.fillHex) }];
-    cy.strokes = [
-      { type: "SOLID", color: hexToRGB(config.ctaBox.strokeHex) },
-    ];
-    cy.strokeWeight = config.ctaBox.strokeWidth;
-    // CTA 안 첫 텍스트
-    const ctaInnerText = findFirstTextInside(ctaNode);
-    if (ctaInnerText) {
-      await applyTextSpec(ctaInnerText, config.ctaText);
-    }
-  }
-
-  // 4) Title-Body 그룹과 text container 의 위치·간격 설정
-  //   가정 구조 (중첩 OK):
-  //     배너
-  //     └── text container (CTA 의 부모, gap=30, X/Y)
-  //         ├── Title-Body 그룹 (Body 의 부모, gap=40)
-  //         │   ├── (headline subgroup ─ 옵션, 다중 Title 묶음용)
-  //         │   │   ├── Title
-  //         │   │   └── Title
-  //         │   └── Body
-  //         └── CTA
-  //
-  //   ※ Body 의 부모를 기준으로 gapTitleBody 를 설정 → 다중 Title 의 headline subgroup 의 안쪽 간격은 안 건드림
-  //   (Body 가 frame 인 경우에도 작동하도록 .find 대신 [0] 사용)
-  const firstBody = bodyNodes[0];
-  if (firstBody && firstBody.parent) {
-    const bp = firstBody.parent as unknown as {
-      layoutMode?: string;
-      itemSpacing?: number;
-    };
-    if (bp.layoutMode && bp.layoutMode !== "NONE") {
-      bp.itemSpacing = config.container.gapTitleBody;
-    }
-  }
-  // text container — CTA 의 부모 (단, 부모가 배너 자체면 위치 안 바꿈)
-  //   - itemSpacing = gapBodyCTA (안 children 간 간격)
-  //   - primaryAxisSizingMode / counterAxisSizingMode = "AUTO" → hug content
-  //   - x, y 강제 (배너 안 절대 위치)
-  if (ctaNode && ctaNode.parent && ctaNode.parent !== banner) {
-    const cp = ctaNode.parent as unknown as {
-      layoutMode?: string;
-      itemSpacing?: number;
-      x: number;
-      y: number;
-      primaryAxisSizingMode?: string;
-      counterAxisSizingMode?: string;
-    };
-    if (cp.layoutMode && cp.layoutMode !== "NONE") {
-      cp.itemSpacing = config.container.gapBodyCTA;
-      cp.primaryAxisSizingMode = "AUTO";
-      cp.counterAxisSizingMode = "AUTO";
-    }
-    // ★ 핵심: 배너 안에서 text container 의 절대 위치 강제
-    cp.x = config.container.x;
-    cp.y = config.container.y;
-  }
-
-  // 4.5) Title/Body FRAME 의 layout — Figma 의 inline-flex 동작 재현
-  //      - itemSpacing = gapInsideTextBox (안쪽 텍스트 사이 간격)
-  //      - primaryAxisAlignItems = "CENTER"  ← justify-content: center
-  //      - primaryAxisSizingMode = "AUTO"    ← hug content (vertical)
-  //      - counterAxisSizingMode = "AUTO"    ← hug content (horizontal)
-  //      (counterAxisAlignItems = "MIN" 은 step 6 의 LEFT cascade 에서 설정됨)
-  {
-    const frames: SceneNode[] = [];
-    for (const n of titleNodes) if (n.type !== "TEXT") frames.push(n);
-    for (const n of bodyNodes) if (n.type !== "TEXT") frames.push(n);
-    for (const f of frames) {
-      if ("layoutMode" in f) {
-        const fy = f as unknown as {
-          layoutMode?: string;
-          itemSpacing?: number;
-          primaryAxisAlignItems?: string;
-          primaryAxisSizingMode?: string;
-          counterAxisSizingMode?: string;
-        };
-        if (fy.layoutMode && fy.layoutMode !== "NONE") {
-          if (config.container.gapInsideTextBox !== undefined) {
-            fy.itemSpacing = config.container.gapInsideTextBox;
-          }
-          fy.primaryAxisAlignItems = "CENTER";
-          fy.primaryAxisSizingMode = "AUTO";
-          fy.counterAxisSizingMode = "AUTO";
-        }
-      }
-    }
-  }
-
-  // 5) 배너 안 모든 텍스트에 일괄 처리
-  //    - textAutoResize = "WIDTH_AND_HEIGHT" → 텍스트 길이에 맞춰 박스 자동 hug
-  //      (CTA 안 텍스트가 잘리는 문제 방지 — 모든 텍스트 박스가 글자 길이 따라 자동 조절)
-  //    - container.textAlign 이 있으면 모든 텍스트에 일괄 정렬 적용
-  const allTexts: TextNode[] = [];
-  collectTexts(banner, (t) => allTexts.push(t));
-  for (const t of allTexts) {
-    try {
-      await loadFontsForText(t); // 텍스트 속성 변경 전 필수
-      t.textAutoResize = "WIDTH_AND_HEIGHT";
-      if (config.container.textAlign) {
-        t.textAlignHorizontal = config.container.textAlign;
-      }
-    } catch (e) {
-      // 폰트 로드 실패 시 무시하고 계속
-    }
-  }
-
-  // 6) container.textAlign === "LEFT" 일 때 — 좌측 정렬 강제
-  //    대상: Title/Body/CTA 본인 + 그 안 텍스트 자손 (Title 이 frame 일 때 inner text 들)
-  //    처리:
-  //      ① 각 레이어 x = 0
-  //      ② 각 레이어 본인의 auto-layout (있다면) counterAxisAlignItems = "MIN"
-  //         → 안의 자손 텍스트들이 LEFT 로 정렬됨 (Title FRAME 의 inner 두 텍스트 등)
-  //      ③ 부모 chain 의 모든 auto-layout 도 counterAxisAlignItems = "MIN"
-  //    (banner 자체는 안 건드림)
-  if (config.container.textAlign === "LEFT") {
-    const layersToAlignSet = new Set<SceneNode>();
-    for (const n of titleNodes) layersToAlignSet.add(n);
-    for (const n of titleTexts) layersToAlignSet.add(n);
-    for (const n of bodyNodes) layersToAlignSet.add(n);
-    for (const n of bodyTexts) layersToAlignSet.add(n);
-    if (ctaNode) layersToAlignSet.add(ctaNode);
-
-    for (const layer of layersToAlignSet) {
-      // ① x = 0
-      (layer as unknown as { x: number }).x = 0;
-      // ② 본인의 auto-layout (있다면)
-      if ("layoutMode" in layer) {
-        const ly = layer as unknown as {
-          layoutMode?: string;
-          counterAxisAlignItems?: string;
-        };
-        if (ly.layoutMode && ly.layoutMode !== "NONE") {
-          ly.counterAxisAlignItems = "MIN";
-        }
-      }
-      // ③ 부모 chain (banner 직전까지)
-      let cur: BaseNode | null = layer.parent;
-      while (cur && cur !== banner) {
-        if ("layoutMode" in cur) {
-          const cy = cur as unknown as {
-            layoutMode?: string;
-            counterAxisAlignItems?: string;
-          };
-          if (cy.layoutMode && cy.layoutMode !== "NONE") {
-            cy.counterAxisAlignItems = "MIN";
-          }
-        }
-        cur = cur.parent;
-      }
-    }
-  }
-
-  // 7) Y centering — config.yCenter === true 면 text container 의 y 를 배너 안 수직 중앙으로
-  //    (모든 sizing/layout 가 끝난 뒤 마지막에 계산해야 정확한 height 가 잡힘)
-  if (
-    config.container.yCenter &&
-    ctaNode &&
-    ctaNode.parent &&
-    ctaNode.parent !== banner
-  ) {
-    const cp = ctaNode.parent as unknown as { y: number; height: number };
-    const bannerH = (banner as unknown as { height: number }).height;
-    cp.y = (bannerH - cp.height) / 2;
   }
 }
 
