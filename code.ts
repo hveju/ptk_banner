@@ -67,12 +67,11 @@ interface SizeStyleConfig {
 const SIZE_STYLES: { [sizeId: string]: SizeStyleConfig } = {
   s_1920x1080: {
     container: {
-      x: 230,
-      y: 0, // yCenter 가 true 면 무시됨 (배너 height 안에서 수직 중앙으로 자동 정렬)
-      yCenter: true,
+      x: 240,
+      y: 340,
       gapTitleBody: 40,
       gapBodyCTA: 30,
-      gapInsideTextBox: 4, // Title/Body FRAME 안 텍스트들 사이 간격
+      gapInsideTextBox: 4, // Title FRAME 안 두 텍스트 사이 간격 (고정 4px)
       textAlign: "LEFT", // 모든 텍스트 일괄 왼쪽 정렬
     },
     title: {
