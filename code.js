@@ -37,24 +37,27 @@ const SIZE_STYLES = {
             textAlign: "LEFT", // 모든 텍스트 일괄 왼쪽 정렬
         },
         title: {
-            fontFamilyEn: "Samsung Sharp Sans",
-            fontFamilyKo: "SamsungOneKoreanOTF",
+            // Figma Dev Mode export 에 따라 family 이름에 weight 가 포함되어 있음.
+            // 그래서 fontWeight 는 400(=Regular style) 로 두고 family 이름이 weight 를 표현.
+            fontFamilyEn: "Samsung Sharp Sans-Bold",
+            fontFamilyKo: "SamsungOneKoreanOTF-700",
             fontSize: 58,
-            fontWeight: 700,
+            fontWeight: 400,
             color: "#FFFFFF",
             textAlign: "LEFT",
         },
         body: {
-            fontFamily: "SamsungOneKoreanOTF",
+            fontFamily: "SamsungOneKoreanOTF-400",
             fontSize: 28,
             fontWeight: 400,
             color: "#FFFFFF",
             textAlign: "LEFT",
         },
         ctaText: {
-            fontFamily: "SamsungOneKoreanOTF",
+            // CTA 텍스트는 family 가 "-700" (= 굵은 글씨), style 은 Regular.
+            fontFamily: "SamsungOneKoreanOTF-700",
             fontSize: 14,
-            fontWeight: 700,
+            fontWeight: 400,
             color: "#000000",
             textAlign: "LEFT",
         },
